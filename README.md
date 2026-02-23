@@ -2,7 +2,7 @@
 
 Live demo: https://codepen.io/joshbrew/pen/QwKLpyR
 
-Implementation of: https://www.shadertoy.com/view/tcdGDl
+Adapted implementation of: https://www.shadertoy.com/view/tcdGDl (featured in two minute papers)
 
 It's meant for sparkly snow but you can do a lot with it. Customizable colors and scaling.
 
