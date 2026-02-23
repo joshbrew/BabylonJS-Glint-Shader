@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BabylonJS Centered Octave Gaussian Glints (Hybrid Neighbor + Stable Face Basis)</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0e1014;
+        color: #eef2f7;
+        font-family: system-ui, sans-serif;
+      }
+
+      #wrap {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      #renderCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+      }
+
+      #panel {
+        position: absolute;
+        left: 12px;
+        top: 12px;
+        bottom: 12px;
+        width: 420px;
+        max-width: calc(100vw - 24px);
+        overflow: auto;
+        background: rgba(0, 0, 0, 0.58);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.35;
+        backdrop-filter: blur(3px);
+        box-sizing: border-box;
+      }
+
+      #statusText {
+        white-space: pre-line;
+        margin-top: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      #panel label {
+        display: block;
+        margin: 7px 0 2px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      .checkrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .checkgrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 10px;
+        margin-top: 8px;
+      }
+
+      .checkgrid .checkrow {
+        margin-top: 0;
+      }
+
+      .btnrow {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        opacity: 0.92;
+        white-space: pre-line;
+      }
+
+      button {
+        background: #1b2430;
+        color: #eef2f7;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #223041;
+      }
+
+      .subtle {
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <canvas id="renderCanvas"></canvas>
+
+      <div id="panel">
+        <div class="row">
+          <strong>Centered octave gaussian glints</strong>
+          <span id="glInfo"></span>
+        </div>
+
+        <label for="density">density (active cell keep)</label>
+        <div class="row">
+          <input id="density" type="range" min="0.000" max="1.000" step="0.001" />
+          <span id="densityVal"></span>
+        </div>
+
+        <label for="uvScale">domain scale</label>
+        <div class="row">
+          <input id="uvScale" type="range" min="0.01" max="12.00" step="0.01" />
+          <span id="uvScaleVal"></span>
+        </div>
+
+        <label for="roughness">roughness</label>
+        <div class="row">
+          <input id="roughness" type="range" min="0.000" max="1.000" step="0.001" />
+          <span id="roughnessVal"></span>
+        </div>
+
+        <label for="microfacet">microfacet roughness</label>
+        <div class="row">
+          <input id="microfacet" type="range" min="0.001" max="0.100" step="0.001" />
+          <span id="microfacetVal"></span>
+        </div>
+
+        <label for="filterSize">pixel filter size</label>
+        <div class="row">
+          <input id="filterSize" type="range" min="0.40" max="1.40" step="0.01" />
+          <span id="filterVal"></span>
+        </div>
+
+        <label for="intensity">glint intensity (10x gain)</label>
+        <div class="row">
+          <input id="intensity" type="range" min="0.00" max="5.00" step="0.01" />
+          <span id="intensityVal"></span>
+        </div>
+
+        <label for="sigmaScale">gaussian sigma scale</label>
+        <div class="row">
+          <input id="sigmaScale" type="range" min="0.25" max="2.50" step="0.01" />
+          <span id="sigmaScaleVal"></span>
+        </div>
+
+        <label for="sigmaMinCell">sigma min clamp (cell units)</label>
+        <div class="row">
+          <input id="sigmaMinCell" type="range" min="0.010" max="0.200" step="0.001" />
+          <span id="sigmaMinCellVal"></span>
+        </div>
+
+        <label for="sigmaMaxCell">sigma max clamp (cell units)</label>
+        <div class="row">
+          <input id="sigmaMaxCell" type="range" min="0.050" max="0.490" step="0.001" />
+          <span id="sigmaMaxCellVal"></span>
+        </div>
+
+        <label for="anisoWarpStrength">aniso warp strength</label>
+        <div class="row">
+          <input id="anisoWarpStrength" type="range" min="0.00" max="1.50" step="0.01" />
+          <span id="anisoWarpStrengthVal"></span>
+        </div>
+
+        <label for="shardMix">glass shard mix</label>
+        <div class="row">
+          <input id="shardMix" type="range" min="0.00" max="1.00" step="0.01" />
+          <span id="shardMixVal"></span>
+        </div>
+
+        <label for="shardSharpness">shard sharpness</label>
+        <div class="row">
+          <input id="shardSharpness" type="range" min="0.00" max="1.00" step="0.01" />
+          <span id="shardSharpnessVal"></span>
+        </div>
+
+        <label for="shardEdgeHardness">shard edge hardness</label>
+        <div class="row">
+          <input id="shardEdgeHardness" type="range" min="0.00" max="1.00" step="0.01" />
+          <span id="shardEdgeHardnessVal"></span>
+        </div>
+
+        <label for="shardClipStrength">shard clip strength</label>
+        <div class="row">
+          <input id="shardClipStrength" type="range" min="0.00" max="1.00" step="0.01" />
+          <span id="shardClipStrengthVal"></span>
+        </div>
+
+        <label for="renderScale">render scale</label>
+        <div class="row">
+          <input id="renderScale" type="range" min="0.50" max="1.00" step="0.05" />
+          <span id="renderScaleVal"></span>
+        </div>
+
+        <label for="orbitSpeed">auto orbit speed</label>
+        <div class="row">
+          <input id="orbitSpeed" type="range" min="-1.50" max="1.50" step="0.01" />
+          <span id="orbitSpeedVal"></span>
+        </div>
+
+        <div class="checkgrid">
+          <div class="checkrow">
+            <input id="spinMeshes" type="checkbox" />
+            <label for="spinMeshes" style="margin: 0">spin meshes</label>
+          </div>
+          <div class="checkrow">
+            <input id="autoOrbit" type="checkbox" />
+            <label for="autoOrbit" style="margin: 0">auto orbit camera</label>
+          </div>
+          <div class="checkrow">
+            <input id="toneMapGamma" type="checkbox" />
+            <label for="toneMapGamma" style="margin: 0">tonemap + gamma</label>
+          </div>
+          <div class="checkrow">
+            <input id="sparkleColorMode" type="checkbox" />
+            <label for="sparkleColorMode" style="margin: 0">random sparkle colors</label>
+          </div>
+          <div class="checkrow">
+            <input id="anisoWarpMode" type="checkbox" />
+            <label for="anisoWarpMode" style="margin: 0">aniso warp</label>
+          </div>
+          <div class="checkrow">
+            <input id="glassShardMode" type="checkbox" />
+            <label for="glassShardMode" style="margin: 0">glass shard mode</label>
+          </div>
+        </div>
+
+        <div class="btnrow">
+          <button id="resetParamsBtn" type="button">Reset Params</button>
+          <button id="resetCamBtn" type="button">Reset Camera</button>
+        </div>
+
+        <div class="hint subtle">
+          Density gates active cells only (keep probability), domain scale controls pattern scale.
+          This build uses a hybrid neighbor search and an object-locked face basis to avoid cube face orientation snaps.
+        </div>
+
+      
+        <div id="statusText"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      const defaults = {
+        density01: 0.42,
+        roughness01: 0.28,
+        microfacetRoughness: 0.014,
+        pixelFilterSize: 0.62,
+        uvScale: 1.65,
+        intensity: 1.10,
+
+        sigmaScale: 1.00,
+        sigmaMinCell: 0.045,
+        sigmaMaxCell: 0.220,
+
+        anisoWarpStrength: 0.60,
+
+        shardMix: 0.75,
+        shardSharpness: 0.88,
+        shardEdgeHardness: 0.92,
+        shardClipStrength: 0.95,
+
+        renderScale: 0.80,
+        orbitSpeed: 0.20,
+
+        spinMeshes: true,
+        autoOrbit: true,
+        toneMapGamma: false,
+        sparkleColorGradient: true,
+        anisoWarpMode: false,
+        glassShardMode: false,
+      };
+
+      const uniformNames = [
+        "world",
+        "worldViewProjection",
+        "uCameraPos",
+        "uLightDir",
+
+        "uDensity01",
+        "uRoughness01",
+        "uMicrofacetRoughness",
+        "uPixelFilterSize",
+        "uUVScale",
+        "uIntensity",
+
+        "uSigmaScale",
+        "uSigmaMinCell",
+        "uSigmaMaxCell",
+
+        "uAnisoWarpStrength",
+
+        "uShardMix",
+        "uShardSharpness",
+        "uShardEdgeHardness",
+        "uShardClipStrength",
+
+        "uUseToneMapGamma",
+        "uUseSparkleColorGradient",
+        "uUseAnisoWarpMode",
+        "uUseGlassShardMode",
+
+        "uFrontLightColor",
+        "uFrontLightIntensity",
+        "uBackLightColor",
+        "uBackLightIntensity",
+      ];
+
+      const vertexGLSL = `
+precision highp float;
+
+attribute vec3 position;
+attribute vec3 normal;
+
+uniform mat4 world;
+uniform mat4 worldViewProjection;
+
+varying vec3 vPosW;
+varying vec3 vPosL;
+varying vec3 vNormalW;
+varying vec3 vNormalL;
+varying vec3 vTangentW;
+varying vec3 vBitangentW;
+
+vec3 safeNormalize3(vec3 v) {
+  float l = length(v);
+  return (l > 1e-8) ? (v / l) : vec3(1.0, 0.0, 0.0);
+}
+
+void buildLocalFaceBasis(vec3 nL, out vec3 tL, out vec3 bL) {
+  vec3 n = safeNormalize3(nL);
+  vec3 refAxis = (abs(n.y) > 0.999) ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+  tL = safeNormalize3(refAxis - n * dot(refAxis, n));
+  bL = safeNormalize3(cross(n, tL));
+}
+
+void main(void) {
+  vec4 worldPos = world * vec4(position, 1.0);
+  vPosW = worldPos.xyz;
+  vPosL = position;
+
+  vec3 nL = safeNormalize3(normal);
+  vNormalL = nL;
+  vNormalW = safeNormalize3((world * vec4(nL, 0.0)).xyz);
+
+  vec3 tL;
+  vec3 bL;
+  buildLocalFaceBasis(nL, tL, bL);
+
+  vTangentW = safeNormalize3((world * vec4(tL, 0.0)).xyz);
+  vBitangentW = safeNormalize3((world * vec4(bL, 0.0)).xyz);
+
+  gl_Position = worldViewProjection * vec4(position, 1.0);
+}
+`;
+
+      const fragmentGLSL = `
+precision highp float;
+
+varying vec3 vPosW;
+varying vec3 vPosL;
+varying vec3 vNormalW;
+varying vec3 vNormalL;
+varying vec3 vTangentW;
+varying vec3 vBitangentW;
+
+uniform vec3 uCameraPos;
+uniform vec3 uLightDir;
+uniform vec3 uFrontLightColor;
+uniform float uFrontLightIntensity;
+uniform vec3 uBackLightColor;
+uniform float uBackLightIntensity;
+
+uniform float uDensity01;
+uniform float uRoughness01;
+uniform float uMicrofacetRoughness;
+uniform float uPixelFilterSize;
+uniform float uUVScale;
+uniform float uIntensity;
+
+uniform float uSigmaScale;
+uniform float uSigmaMinCell;
+uniform float uSigmaMaxCell;
+
+uniform float uAnisoWarpStrength;
+
+uniform float uShardMix;
+uniform float uShardSharpness;
+uniform float uShardEdgeHardness;
+uniform float uShardClipStrength;
+
+uniform float uUseToneMapGamma;
+uniform float uUseSparkleColorGradient;
+uniform float uUseAnisoWarpMode;
+uniform float uUseGlassShardMode;
+
+const float pi = 3.14159265358979;
+
+float satf(float x) {
+  return clamp(x, 0.0, 1.0);
+}
+
+float det2(mat2 m) {
+  return m[0][0] * m[1][1] - m[1][0] * m[0][1];
+}
+
+mat2 tr2(mat2 m) {
+  return mat2(m[0][0], m[1][0], m[0][1], m[1][1]);
+}
+
+vec2 safeN2(vec2 v) {
+  float l = length(v);
+  return (l > 1e-8) ? v / l : vec2(1.0, 0.0);
+}
+
+vec2 lambert(vec3 v) {
+  return v.xy / sqrt(1.0 + v.z);
+}
+
+vec3 ndf_to_disk_ggx(vec3 v, float alpha) {
+  vec3 hemi = vec3(v.xy / max(alpha, 1e-5), v.z);
+  float denom = max(dot(hemi, hemi), 1e-8);
+  vec2 v_disk = lambert(normalize(hemi)) * 0.5 + 0.5;
+  float jacobian_determinant = 1.0 / (max(alpha * alpha, 1e-8) * denom * denom);
+  return vec3(v_disk, jacobian_determinant);
+}
+
+mat2 inv_quadratic(mat2 M) {
+  float D = det2(M);
+  if (abs(D) < 1e-10) D = (D < 0.0) ? -1e-10 : 1e-10;
+  float A = dot(M[0] / D, M[0] / D);
+  float B = -dot(M[0] / D, M[1] / D);
+  float C = dot(M[1] / D, M[1] / D);
+  return mat2(C, B, B, A);
+}
+
+mat2 uv_ellipsoid(mat2 uv_J) {
+  mat2 Q = inv_quadratic(tr2(uv_J));
+  float tr = 0.5 * (Q[0][0] + Q[1][1]);
+  float D = sqrt(max(0.0, tr * tr - det2(Q)));
+  float l1 = max(tr - D, 1e-8);
+  float l2 = max(tr + D, 1e-8);
+
+  vec2 v1 = vec2(l1 - Q[1][1], Q[0][1]);
+  vec2 v2 = vec2(Q[1][0], l2 - Q[0][0]);
+
+  vec2 n = 1.0 / sqrt(vec2(l1, l2));
+  return mat2(safeN2(v1) * n.x, safeN2(v2) * n.y);
+}
+
+vec2 hash22(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+vec3 paletteLerp(float t, float a, float b, vec3 ca, vec3 cb) {
+  float u = clamp((t - a) / max(b - a, 1e-6), 0.0, 1.0);
+  return mix(ca, cb, u);
+}
+
+vec3 sampleSparkleGradient(float t) {
+  t = fract(t);
+
+  vec3 c0 = vec3(1.00, 0.376, 0.376);
+  vec3 c1 = vec3(1.00, 0.667, 0.353);
+  vec3 c2 = vec3(1.00, 0.941, 0.510);
+  vec3 c3 = vec3(0.588, 1.00, 0.863);
+  vec3 c4 = vec3(0.471, 0.706, 1.00);
+  vec3 c5 = vec3(0.824, 0.549, 1.00);
+  vec3 c6 = vec3(1.00, 0.471, 0.784);
+  vec3 c7 = vec3(1.00, 0.922, 0.961);
+
+  if (t < 0.12) return paletteLerp(t, 0.00, 0.12, c0, c1);
+  if (t < 0.26) return paletteLerp(t, 0.12, 0.26, c1, c2);
+  if (t < 0.42) return paletteLerp(t, 0.26, 0.42, c2, c3);
+  if (t < 0.58) return paletteLerp(t, 0.42, 0.58, c3, c4);
+  if (t < 0.74) return paletteLerp(t, 0.58, 0.74, c4, c5);
+  if (t < 0.88) return paletteLerp(t, 0.74, 0.88, c5, c6);
+  return paletteLerp(t, 0.88, 1.00, c6, c7);
+}
+
+float G1_GGX(vec3 n, vec3 h, vec3 v, float alpha) {
+  float ndotv = dot(n, v);
+  if (ndotv < 0.0) return 0.0;
+  float ndotv_sq = max(ndotv * ndotv, 1e-6);
+  float tan_theta_sq = (1.0 - ndotv_sq) / ndotv_sq;
+  float Gamma = -0.5 + 0.5 * sqrt(1.0 + alpha * alpha * tan_theta_sq);
+  return 1.0 / (1.0 + Gamma);
+}
+
+float G_GGX(vec3 n, vec3 h, vec3 li, vec3 lo, float alpha) {
+  return G1_GGX(n, h, li, alpha) * G1_GGX(n, h, lo, alpha);
+}
+
+vec3 mulT(mat3 m, vec3 v) {
+  return vec3(dot(m[0], v), dot(m[1], v), dot(m[2], v));
+}
+
+vec3 triplanarWeights(vec3 n) {
+  vec3 an = abs(normalize(n));
+  vec3 w = pow(an, vec3(8.0));
+  float s = max(w.x + w.y + w.z, 1e-6);
+  return w / s;
+}
+
+void sparkleDomainProjX(vec3 posL, float scale, out vec2 uv, out mat2 uvJ) {
+  float s = max(scale, 1e-6);
+  vec3 p = posL * s;
+  vec3 dx = dFdx(p);
+  vec3 dy = dFdy(p);
+  uv = vec2(p.z, p.y);
+  uvJ = mat2(vec2(dx.z, dx.y), vec2(dy.z, dy.y));
+}
+
+void sparkleDomainProjY(vec3 posL, float scale, out vec2 uv, out mat2 uvJ) {
+  float s = max(scale, 1e-6);
+  vec3 p = posL * s;
+  vec3 dx = dFdx(p);
+  vec3 dy = dFdy(p);
+  uv = vec2(p.x, p.z);
+  uvJ = mat2(vec2(dx.x, dx.z), vec2(dy.x, dy.z));
+}
+
+void sparkleDomainProjZ(vec3 posL, float scale, out vec2 uv, out mat2 uvJ) {
+  float s = max(scale, 1e-6);
+  vec3 p = posL * s;
+  vec3 dx = dFdx(p);
+  vec3 dy = dFdy(p);
+  uv = vec2(p.x, p.y);
+  uvJ = mat2(vec2(dx.x, dx.y), vec2(dy.x, dy.y));
+}
+
+vec2 clampSquareSoft(vec2 q, float limit) {
+  float l = max(limit, 1e-4);
+  vec2 a = abs(q);
+  float m = max(a.x, a.y);
+  if (m <= l) return q;
+  return q * (l / max(m, 1e-6));
+}
+
+float superellipseFill(vec2 p, vec2 r, float powerN, float edgeSoft) {
+  vec2 q = abs(p) / max(r, vec2(1e-5));
+  float m = pow(q.x, powerN) + pow(q.y, powerN);
+  return 1.0 - smoothstep(1.0 - edgeSoft, 1.0 + edgeSoft, m);
+}
+
+float localShardClipMask(
+  vec2 localCell,
+  vec2 h0,
+  vec2 h1,
+  float shardMix,
+  float shardSharp,
+  float edgeHardness
+) {
+  vec2 axis = safeN2(h1 * 2.0 - 1.0);
+  vec2 perp = vec2(-axis.y, axis.x);
+
+  float ang = (h0.x - 0.5) * 1.2;
+  float ca = cos(ang);
+  float sa = sin(ang);
+  mat2 R = mat2(ca, -sa, sa, ca);
+
+  vec2 p = R * localCell;
+
+  float longR = mix(0.14, 0.44, h0.y);
+  float shortR = mix(0.035, 0.18, h1.x);
+
+  float shardiness = mix(0.75, 2.2, shardSharp);
+  longR *= mix(0.85, 1.35, shardMix);
+  shortR *= mix(0.70, 1.10, shardMix);
+
+  float powerN = mix(1.15, 0.58, shardiness);
+  float edgeSoft = mix(0.18, 0.02, edgeHardness);
+
+  float baseFill = superellipseFill(p, vec2(longR, shortR), powerN, edgeSoft);
+
+  float cut1 = dot(p, safeN2(axis + 0.35 * perp)) - mix(0.02, 0.14, h0.x);
+  float cut2 = dot(p, safeN2(-axis + 0.55 * perp)) - mix(0.00, 0.12, h1.y);
+
+  float cutSoft = mix(0.16, 0.02, edgeHardness);
+  float cutMask1 = 1.0 - smoothstep(-cutSoft, cutSoft, cut1);
+  float cutMask2 = 1.0 - smoothstep(-cutSoft, cutSoft, cut2);
+
+  float faceted = max(baseFill * cutMask1, baseFill * cutMask2);
+  return mix(1.0, faceted, shardMix);
+}
+
+vec4 sparkleFieldOctaves(vec3 hLocal, float alpha, vec2 uv, mat2 uv_J, float anisoEval) {
+  vec3 xa_d = ndf_to_disk_ggx(hLocal, alpha);
+  vec2 x_a = xa_d.xy;
+  float d = xa_d.z;
+
+  float dens = satf(uDensity01);
+  float rough = satf(uRoughness01);
+  float micro = satf(uMicrofacetRoughness / 0.10);
+  float fsz = max(uPixelFilterSize, 0.10);
+
+  float baseRes = 12.0;
+  float baseKeep = mix(0.02, 0.98, dens);
+
+  float anisoStrength = anisoEval * satf(uAnisoWarpStrength / 1.5);
+
+  float useShards = step(0.5, uUseGlassShardMode);
+  float shardMix = satf(uShardMix) * useShards;
+  float shardSharp = satf(uShardSharpness);
+  float shardEdgeHard = satf(uShardEdgeHardness);
+  float shardClipStrength = satf(uShardClipStrength);
+
+  float sigmaScaleCtl = max(uSigmaScale, 0.01);
+  float sigmaMinCtl = clamp(uSigmaMinCell, 0.005, 0.49);
+  float sigmaMaxCtl = clamp(uSigmaMaxCell, sigmaMinCtl + 0.001, 0.49);
+
+  vec3 Cacc = vec3(0.0);
+  float Wacc = 0.0;
+  float Dacc = 0.0;
+
+  float useSparkle = step(0.5, uUseSparkleColorGradient);
+
+  for (int k = 0; k < 4; ++k) {
+    float fk = float(k);
+    float res_s = baseRes * exp2(fk);
+
+    vec2 p = uv * res_s;
+    vec2 cellBase = floor(p);
+    vec2 localCenter = fract(p) - 0.5;
+
+    mat2 Jcells = (res_s * fsz) * uv_J;
+    float cellPerPx = max(length(Jcells[0]), length(Jcells[1]));
+
+    float sigmaBase = mix(0.078, 0.152, rough) * mix(0.95, 1.18, fk / 3.0);
+    float sigmaMinPx = mix(0.28, 0.82, rough);
+    float sigmaMinCells = sigmaMinPx * cellPerPx;
+
+    float sigmaCellsBase = max(sigmaBase, sigmaMinCells);
+    sigmaCellsBase *= sigmaScaleCtl;
+    sigmaCellsBase = clamp(sigmaCellsBase, sigmaMinCtl, sigmaMaxCtl);
+
+    float octaveKeep = baseKeep * mix(1.00, 0.72, fk / 3.0);
+    float octaveWeight = exp2(-fk * 0.72);
+
+    float edgeBand = clamp(0.05 + 2.6 * sigmaCellsBase + 0.85 * cellPerPx, 0.05, 0.49);
+    float edgeNear = step(0.5 - edgeBand, max(abs(localCenter.x), abs(localCenter.y)));
+
+    float grazingNeed3x3 = 0.0;
+    grazingNeed3x3 = max(grazingNeed3x3, step(0.22, cellPerPx));
+    grazingNeed3x3 = max(grazingNeed3x3, step(0.155, sigmaCellsBase));
+    grazingNeed3x3 = max(grazingNeed3x3, step(0.001, anisoStrength * 0.65));
+    grazingNeed3x3 = max(grazingNeed3x3, step(0.001, shardMix * 0.65));
+
+    int sx = (localCenter.x >= 0.0) ? 1 : -1;
+    int sy = (localCenter.y >= 0.0) ? 1 : -1;
+
+    for (int oy = -1; oy <= 1; ++oy) {
+      for (int ox = -1; ox <= 1; ++ox) {
+        float allowThisCell = 0.0;
+
+        if (ox == 0 && oy == 0) {
+          allowThisCell = 1.0;
+        }
+
+        if (edgeNear > 0.5) {
+          bool in2x2x = (ox == 0) || (ox == sx);
+          bool in2x2y = (oy == 0) || (oy == sy);
+          if (in2x2x && in2x2y) {
+            allowThisCell = 1.0;
+          }
+        }
+
+        if (grazingNeed3x3 > 0.5) {
+          allowThisCell = 1.0;
+        }
+
+        if (allowThisCell < 0.5) {
+          continue;
+        }
+
+        vec2 cellOffset = vec2(float(ox), float(oy));
+        vec2 cell = cellBase + cellOffset;
+        vec2 local = p - (cell + vec2(0.5));
+
+        float localCullR = 0.78 + 2.8 * sigmaCellsBase + 0.9 * cellPerPx;
+        if (max(abs(local.x), abs(local.y)) > localCullR) {
+          continue;
+        }
+
+        vec2 h0 = hash22(cell + vec2(17.1 * fk + 3.7, 29.3 * fk + 5.1));
+        vec2 h1 = hash22(cell + vec2(41.9 * fk + 11.4, 13.7 * fk + 27.2));
+        float h2 = hash12(cell + vec2(71.2 * fk + 9.0, 19.4 * fk + 2.0));
+
+        float cellOn = step(1.0 - octaveKeep, h0.x);
+        if (cellOn < 0.5) {
+          continue;
+        }
+
+        float sigmaCells = sigmaCellsBase;
+
+        vec2 axis = safeN2(h1 * 2.0 - 1.0);
+        vec2 axisPerp = vec2(-axis.y, axis.x);
+
+        vec2 q = local;
+
+        if (anisoStrength > 0.001) {
+          float stretch = 1.0 + anisoStrength * (0.40 + 1.10 * h0.y) * mix(0.6, 1.0, 1.0 - rough);
+          float squeeze = mix(0.38, 0.90, rough) / max(stretch, 1e-4);
+
+          float qx = dot(q, axis);
+          float qy = dot(q, axisPerp);
+          q = axis * (qx * stretch) + axisPerp * (qy * squeeze);
+
+          vec2 lensVec = (x_a - vec2(0.5)) * (0.03 + 0.16 * anisoStrength) * mix(0.7, 1.25, h2);
+          q += lensVec;
+
+          float limit = clamp(0.49 - 2.0 * sigmaCells - 0.5 * cellPerPx, 0.03, 0.49);
+          q = clampSquareSoft(q, limit);
+        }
+
+        float r2 = dot(q, q) / max(sigmaCells * sigmaCells, 1e-8);
+        float gSurface = exp(-0.5 * r2);
+
+        if (shardMix > 0.001) {
+          float localClip = localShardClipMask(local, h0, h1, shardMix, shardSharp, shardEdgeHard);
+          float shardClip = mix(1.0, localClip, shardClipStrength);
+          gSurface *= shardClip;
+        }
+
+        vec2 gA = 0.08 + 0.84 * h1;
+        float sigmaA = mix(0.028, 0.095, micro) * mix(0.95, 1.18, rough);
+        sigmaA = clamp(sigmaA, 0.018, 0.125);
+
+        vec2 da = x_a - gA;
+        float gAngular = exp(-0.5 * dot(da, da) / max(sigmaA * sigmaA, 1e-8));
+
+        float rarityBoost = mix(0.45, 4.20, pow(h0.y, 4.5));
+        float contrib = cellOn * octaveWeight * rarityBoost * gSurface * gAngular;
+
+        Dacc += contrib;
+
+        float t = fract(h2 + 0.61803398875 * h0.y + 0.27 * fk);
+        vec3 c = sampleSparkleGradient(t);
+
+        if (useShards > 0.5) {
+          float cool = hash12(cell + vec2(3.11 * fk + 19.3, 5.77 * fk + 2.1));
+          vec3 shardTint = mix(
+            vec3(0.78, 0.90, 1.15),
+            vec3(1.20, 0.95, 1.35),
+            cool
+          );
+          c *= mix(vec3(1.0), shardTint, 0.28 * shardMix);
+        }
+
+        float cw = contrib * useSparkle;
+        Cacc += c * cw;
+        Wacc += cw;
+      }
+    }
+  }
+
+  float densityGain = mix(2.2, 5.8, pow(dens, 0.75));
+  float D = Dacc * d / pi * densityGain;
+
+  vec3 avgC = (Wacc > 1e-8) ? (Cacc / Wacc) : vec3(1.0);
+  return vec4(D, avgC);
+}
+
+vec4 glintBRDFColored(float alpha, vec3 view, vec3 light, mat3 base, vec2 uv, mat2 uv_J, float anisoEval) {
+  float ndotv = max(dot(base[2], view), 0.0);
+  float ndotl = max(dot(base[2], light), 0.0);
+
+  vec3 h_sum = view + light;
+  float h2 = dot(h_sum, h_sum);
+  float validH = step(1e-10, h2);
+
+  vec3 h_world = h_sum * inversesqrt(max(h2, 1e-10));
+  h_world = normalize(mix(vec3(0.0, 0.0, 1.0), h_world, validH));
+  vec3 h_local = mulT(base, h_world);
+
+  vec4 Dcol = sparkleFieldOctaves(h_local, alpha, uv, uv_J, anisoEval);
+
+  float D = Dcol.x;
+  float F = mix(pow(1.0 - dot(h_world, light), 5.0), 1.0, 0.96);
+  float G = G_GGX(base[2], h_world, light, view, alpha);
+  float denom = max(4.0 * ndotv * ndotl, 1e-6);
+
+  float valid = step(1e-6, ndotv) * step(1e-6, ndotl) * validH;
+  float spec = (D * F * G / denom) * valid;
+
+  return vec4(spec, Dcol.yzw);
+}
+
+void main(void) {
+  vec3 N = normalize(vNormalW);
+  vec3 V = normalize(uCameraPos - vPosW);
+
+  vec2 uvX;
+  vec2 uvY;
+  vec2 uvZ;
+  mat2 uvJX;
+  mat2 uvJY;
+  mat2 uvJZ;
+
+  sparkleDomainProjX(vPosL, uUVScale, uvX, uvJX);
+  sparkleDomainProjY(vPosL, uUVScale, uvY, uvJY);
+  sparkleDomainProjZ(vPosL, uUVScale, uvZ, uvJZ);
+
+  uvJX = uv_ellipsoid(uvJX);
+  uvJY = uv_ellipsoid(uvJY);
+  uvJZ = uv_ellipsoid(uvJZ);
+
+  vec3 triW = triplanarWeights(vNormalL);
+
+  float alpha = 0.2 + uRoughness01 * 0.8;
+
+  vec3 L0 = normalize(uLightDir);
+  vec3 frontLColor = uFrontLightColor * uFrontLightIntensity;
+  vec3 backLColor = uBackLightColor * uBackLightIntensity;
+
+  float ndotlFront = max(dot(N, L0), 0.0);
+  float ndotlBack = max(dot(N, -L0), 0.0);
+
+  vec3 T = normalize(vTangentW - N * dot(N, vTangentW));
+  if (length(T) < 1e-5) {
+    vec3 refAxis = (abs(N.y) < 0.99) ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    T = normalize(refAxis - N * dot(refAxis, N));
+  }
+  vec3 B = normalize(cross(N, T));
+  mat3 glintBasis = mat3(T, B, N);
+
+  float anisoEval = step(0.5, uUseAnisoWarpMode);
+
+  vec4 sFrontX = glintBRDFColored(alpha, V,  L0, glintBasis, uvX, uvJX, anisoEval);
+  vec4 sFrontY = glintBRDFColored(alpha, V,  L0, glintBasis, uvY, uvJY, anisoEval);
+  vec4 sFrontZ = glintBRDFColored(alpha, V,  L0, glintBasis, uvZ, uvJZ, anisoEval);
+
+  vec4 sBackX  = glintBRDFColored(alpha, V, -L0, glintBasis, uvX, uvJX, anisoEval);
+  vec4 sBackY  = glintBRDFColored(alpha, V, -L0, glintBasis, uvY, uvJY, anisoEval);
+  vec4 sBackZ  = glintBRDFColored(alpha, V, -L0, glintBasis, uvZ, uvJZ, anisoEval);
+
+  vec4 sFrontPack = sFrontX * triW.x + sFrontY * triW.y + sFrontZ * triW.z;
+  vec4 sBackPack  = sBackX  * triW.x + sBackY  * triW.y + sBackZ  * triW.z;
+
+  float useSparkle = step(0.5, uUseSparkleColorGradient);
+  vec3 sparkleFront = mix(vec3(1.0), sFrontPack.yzw, useSparkle);
+  vec3 sparkleBack = mix(vec3(1.0), sBackPack.yzw, useSparkle);
+
+  float intensityGain = uIntensity * 10.0;
+
+  vec3 col =
+    vec3(sFrontPack.x) * sparkleFront * ndotlFront * frontLColor * intensityGain +
+    vec3(sBackPack.x)  * sparkleBack  * ndotlBack  * backLColor  * intensityGain;
+
+  if (uUseToneMapGamma > 0.5) {
+    col = col / (1.0 + col);
+    col = pow(col, vec3(0.45454545));
+  }
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+      function installShaders(BABYLON) {
+        const name = "centeredOctaveGaussianGlintShardAnisoHybridStable";
+        BABYLON.Effect.ShadersStore[name + "VertexShader"] = vertexGLSL;
+        BABYLON.Effect.ShadersStore[name + "FragmentShader"] = fragmentGLSL;
+        return name;
+      }
+
+      function sci(x) {
+        if (x === 0) return "0";
+        const e = Math.floor(Math.log10(Math.abs(x)));
+        const m = x / Math.pow(10, e);
+        return m.toFixed(2) + "e" + e;
+      }
+
+      const ui = {
+        glInfo: document.getElementById("glInfo"),
+        statusText: document.getElementById("statusText"),
+
+        density: document.getElementById("density"),
+        roughness: document.getElementById("roughness"),
+        microfacet: document.getElementById("microfacet"),
+        filterSize: document.getElementById("filterSize"),
+        uvScale: document.getElementById("uvScale"),
+        intensity: document.getElementById("intensity"),
+
+        sigmaScale: document.getElementById("sigmaScale"),
+        sigmaMinCell: document.getElementById("sigmaMinCell"),
+        sigmaMaxCell: document.getElementById("sigmaMaxCell"),
+
+        anisoWarpStrength: document.getElementById("anisoWarpStrength"),
+
+        shardMix: document.getElementById("shardMix"),
+        shardSharpness: document.getElementById("shardSharpness"),
+        shardEdgeHardness: document.getElementById("shardEdgeHardness"),
+        shardClipStrength: document.getElementById("shardClipStrength"),
+
+        renderScale: document.getElementById("renderScale"),
+        orbitSpeed: document.getElementById("orbitSpeed"),
+
+        densityVal: document.getElementById("densityVal"),
+        roughnessVal: document.getElementById("roughnessVal"),
+        microfacetVal: document.getElementById("microfacetVal"),
+        filterVal: document.getElementById("filterVal"),
+        uvScaleVal: document.getElementById("uvScaleVal"),
+        intensityVal: document.getElementById("intensityVal"),
+
+        sigmaScaleVal: document.getElementById("sigmaScaleVal"),
+        sigmaMinCellVal: document.getElementById("sigmaMinCellVal"),
+        sigmaMaxCellVal: document.getElementById("sigmaMaxCellVal"),
+
+        anisoWarpStrengthVal: document.getElementById("anisoWarpStrengthVal"),
+
+        shardMixVal: document.getElementById("shardMixVal"),
+        shardSharpnessVal: document.getElementById("shardSharpnessVal"),
+        shardEdgeHardnessVal: document.getElementById("shardEdgeHardnessVal"),
+        shardClipStrengthVal: document.getElementById("shardClipStrengthVal"),
+
+        renderScaleVal: document.getElementById("renderScaleVal"),
+        orbitSpeedVal: document.getElementById("orbitSpeedVal"),
+
+        spinMeshes: document.getElementById("spinMeshes"),
+        autoOrbit: document.getElementById("autoOrbit"),
+        toneMapGamma: document.getElementById("toneMapGamma"),
+        sparkleColorMode: document.getElementById("sparkleColorMode"),
+        anisoWarpMode: document.getElementById("anisoWarpMode"),
+        glassShardMode: document.getElementById("glassShardMode"),
+
+        resetParamsBtn: document.getElementById("resetParamsBtn"),
+        resetCamBtn: document.getElementById("resetCamBtn"),
+      };
+
+      const params = { ...defaults };
+
+      function syncUiFromParams() {
+        ui.density.value = params.density01.toFixed(3);
+        ui.roughness.value = params.roughness01.toFixed(3);
+        ui.microfacet.value = params.microfacetRoughness.toFixed(3);
+        ui.filterSize.value = params.pixelFilterSize.toFixed(2);
+        ui.uvScale.value = params.uvScale.toFixed(2);
+        ui.intensity.value = params.intensity.toFixed(2);
+
+        ui.sigmaScale.value = params.sigmaScale.toFixed(2);
+        ui.sigmaMinCell.value = params.sigmaMinCell.toFixed(3);
+        ui.sigmaMaxCell.value = params.sigmaMaxCell.toFixed(3);
+
+        ui.anisoWarpStrength.value = params.anisoWarpStrength.toFixed(2);
+
+        ui.shardMix.value = params.shardMix.toFixed(2);
+        ui.shardSharpness.value = params.shardSharpness.toFixed(2);
+        ui.shardEdgeHardness.value = params.shardEdgeHardness.toFixed(2);
+        ui.shardClipStrength.value = params.shardClipStrength.toFixed(2);
+
+        ui.renderScale.value = params.renderScale.toFixed(2);
+        ui.orbitSpeed.value = params.orbitSpeed.toFixed(2);
+
+        ui.spinMeshes.checked = !!params.spinMeshes;
+        ui.autoOrbit.checked = !!params.autoOrbit;
+        ui.toneMapGamma.checked = !!params.toneMapGamma;
+        ui.sparkleColorMode.checked = !!params.sparkleColorGradient;
+        ui.anisoWarpMode.checked = !!params.anisoWarpMode;
+        ui.glassShardMode.checked = !!params.glassShardMode;
+
+        ui.densityVal.textContent = params.density01.toFixed(3);
+        ui.roughnessVal.textContent = params.roughness01.toFixed(3);
+        ui.microfacetVal.textContent = params.microfacetRoughness.toFixed(3);
+        ui.filterVal.textContent = params.pixelFilterSize.toFixed(2);
+        ui.uvScaleVal.textContent = params.uvScale.toFixed(2);
+        ui.intensityVal.textContent = params.intensity.toFixed(2);
+
+        ui.sigmaScaleVal.textContent = params.sigmaScale.toFixed(2);
+        ui.sigmaMinCellVal.textContent = params.sigmaMinCell.toFixed(3);
+        ui.sigmaMaxCellVal.textContent = params.sigmaMaxCell.toFixed(3);
+
+        ui.anisoWarpStrengthVal.textContent = params.anisoWarpStrength.toFixed(2);
+
+        ui.shardMixVal.textContent = params.shardMix.toFixed(2);
+        ui.shardSharpnessVal.textContent = params.shardSharpness.toFixed(2);
+        ui.shardEdgeHardnessVal.textContent = params.shardEdgeHardness.toFixed(2);
+        ui.shardClipStrengthVal.textContent = params.shardClipStrength.toFixed(2);
+
+        ui.renderScaleVal.textContent = params.renderScale.toFixed(2);
+        ui.orbitSpeedVal.textContent = params.orbitSpeed.toFixed(2);
+
+        ui.anisoWarpStrength.disabled = !params.anisoWarpMode;
+        ui.shardMix.disabled = !params.glassShardMode;
+        ui.shardSharpness.disabled = !params.glassShardMode;
+        ui.shardEdgeHardness.disabled = !params.glassShardMode;
+        ui.shardClipStrength.disabled = !params.glassShardMode;
+      }
+
+      function updateStatus() {
+        const alpha = 0.2 + params.roughness01 * 0.8;
+        const approxBaseRes = 12.0;
+        const approxN = approxBaseRes * approxBaseRes;
+        const baseKeep = 0.02 + (0.98 - 0.02) * params.density01;
+
+        ui.statusText.textContent = `Centered octave gaussian glint BRDF
+
+Density = active-cell keep probability (does not change cell size)
+Domain scale = pattern scale (uv domain only)
+Sigma = blob size in cell units
+Aniso = in-cell elliptical/lens warp
+Glass shard = hard silhouette clipping of blob shape
+Hybrid neighbor search = 1 cell most of the time, 2x2 near edges, 3x3 on larger/grazing footprints
+Face basis = object-locked per-face (prevents cube orientation snapping)
+
+density = ${params.density01.toFixed(3)}  (base keep ~ ${baseKeep.toFixed(3)})
+domain_scale = ${params.uvScale.toFixed(2)}
+roughness = ${params.roughness01.toFixed(3)}
+microfacet_roughness = ${params.microfacetRoughness.toFixed(3)}
+pixel_filter_size = ${params.pixelFilterSize.toFixed(2)}
+alpha = ${alpha.toFixed(3)}
+
+sigma_scale = ${params.sigmaScale.toFixed(2)}
+sigma_min_cell = ${params.sigmaMinCell.toFixed(3)}
+sigma_max_cell = ${params.sigmaMaxCell.toFixed(3)}
+
+aniso mode = ${params.anisoWarpMode ? "on" : "off"}  (strength ${params.anisoWarpStrength.toFixed(2)})
+glass shard mode = ${params.glassShardMode ? "on" : "off"}
+
+intensity = ${params.intensity.toFixed(2)}  (shader gain x10)
+sparkle color mode = ${params.sparkleColorGradient ? "on" : "off"} (analytic palette, no texture sampling in branches)
+tonemap + gamma = ${params.toneMapGamma ? "on" : "off"}
+
+approx base octave res = ${approxBaseRes.toFixed(2)}
+approx base cell count = ${sci(approxN)}
+renderScale = ${params.renderScale.toFixed(2)}`;
+      }
+
+      function bindRange(el, valueEl, key, digits) {
+        el.addEventListener("input", () => {
+          params[key] = parseFloat(el.value);
+          if (key === "sigmaMinCell" && params.sigmaMaxCell <= params.sigmaMinCell) {
+            params.sigmaMaxCell = Math.min(0.49, params.sigmaMinCell + 0.001);
+          }
+          if (key === "sigmaMaxCell" && params.sigmaMaxCell <= params.sigmaMinCell) {
+            params.sigmaMinCell = Math.max(0.005, params.sigmaMaxCell - 0.001);
+          }
+          valueEl.textContent = params[key].toFixed(digits);
+          syncUiFromParams();
+          updateStatus();
+        });
+      }
+
+      bindRange(ui.density, ui.densityVal, "density01", 3);
+      bindRange(ui.roughness, ui.roughnessVal, "roughness01", 3);
+      bindRange(ui.microfacet, ui.microfacetVal, "microfacetRoughness", 3);
+      bindRange(ui.filterSize, ui.filterVal, "pixelFilterSize", 2);
+      bindRange(ui.uvScale, ui.uvScaleVal, "uvScale", 2);
+      bindRange(ui.intensity, ui.intensityVal, "intensity", 2);
+
+      bindRange(ui.sigmaScale, ui.sigmaScaleVal, "sigmaScale", 2);
+      bindRange(ui.sigmaMinCell, ui.sigmaMinCellVal, "sigmaMinCell", 3);
+      bindRange(ui.sigmaMaxCell, ui.sigmaMaxCellVal, "sigmaMaxCell", 3);
+
+      bindRange(ui.anisoWarpStrength, ui.anisoWarpStrengthVal, "anisoWarpStrength", 2);
+
+      bindRange(ui.shardMix, ui.shardMixVal, "shardMix", 2);
+      bindRange(ui.shardSharpness, ui.shardSharpnessVal, "shardSharpness", 2);
+      bindRange(ui.shardEdgeHardness, ui.shardEdgeHardnessVal, "shardEdgeHardness", 2);
+      bindRange(ui.shardClipStrength, ui.shardClipStrengthVal, "shardClipStrength", 2);
+
+      bindRange(ui.renderScale, ui.renderScaleVal, "renderScale", 2);
+      bindRange(ui.orbitSpeed, ui.orbitSpeedVal, "orbitSpeed", 2);
+
+      ui.spinMeshes.addEventListener("change", () => {
+        params.spinMeshes = !!ui.spinMeshes.checked;
+        updateStatus();
+      });
+      ui.autoOrbit.addEventListener("change", () => {
+        params.autoOrbit = !!ui.autoOrbit.checked;
+        updateStatus();
+      });
+      ui.toneMapGamma.addEventListener("change", () => {
+        params.toneMapGamma = !!ui.toneMapGamma.checked;
+        updateStatus();
+      });
+      ui.sparkleColorMode.addEventListener("change", () => {
+        params.sparkleColorGradient = !!ui.sparkleColorMode.checked;
+        updateStatus();
+      });
+      ui.anisoWarpMode.addEventListener("change", () => {
+        params.anisoWarpMode = !!ui.anisoWarpMode.checked;
+        ui.anisoWarpStrength.disabled = !params.anisoWarpMode;
+        updateStatus();
+      });
+      ui.glassShardMode.addEventListener("change", () => {
+        params.glassShardMode = !!ui.glassShardMode.checked;
+        ui.shardMix.disabled = !params.glassShardMode;
+        ui.shardSharpness.disabled = !params.glassShardMode;
+        ui.shardEdgeHardness.disabled = !params.glassShardMode;
+        ui.shardClipStrength.disabled = !params.glassShardMode;
+        updateStatus();
+      });
+
+      syncUiFromParams();
+      updateStatus();
+
+      (async function main() {
+        const canvas = document.getElementById("renderCanvas");
+
+        async function createWebGPUEngine(canvasEl) {
+          if (!("gpu" in navigator) || !BABYLON.WebGPUEngine) {
+            throw new Error("WebGPU is not available in this browser/session.");
+          }
+
+          const engine = new BABYLON.WebGPUEngine(canvasEl, {
+            preserveDrawingBuffer: false,
+            stencil: false,
+            antialiasing: false,
+            adaptToDeviceRatio: true,
+          });
+
+          await engine.initAsync({
+            glslangOptions: {
+              jsPath: "https://cdn.babylonjs.com/glslang/glslang.js",
+              wasmPath: "https://cdn.babylonjs.com/glslang/glslang.wasm",
+            },
+            twgslOptions: {
+              jsPath: "https://cdn.babylonjs.com/twgsl/twgsl.js",
+              wasmPath: "https://cdn.babylonjs.com/twgsl/twgsl.wasm",
+            },
+          });
+
+          return engine;
+        }
+
+        let engine;
+        try {
+          engine = await createWebGPUEngine(canvas);
+          ui.glInfo.textContent = "WebGPU";
+        } catch (err) {
+          ui.glInfo.textContent = "Unavailable";
+          ui.statusText.textContent = `WebGPU initialization failed
+
+${err && err.message ? err.message : String(err)}
+
+Try Chrome/Edge with WebGPU enabled and run this page from a local server.`;
+          console.error(err);
+          return;
+        }
+
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+        scene.skipPointerMovePicking = true;
+        scene.constantlyUpdateMeshUnderPointer = false;
+
+        const cameraDefaults = {
+          alpha: -Math.PI * 0.5,
+          beta: Math.PI * 0.52,
+          radius: 7.0,
+          target: new BABYLON.Vector3(0, 0, 0),
+          fov: 0.95,
+          minZ: 0.01,
+          lowerRadiusLimit: 2.5,
+          upperRadiusLimit: 20.0,
+          wheelDeltaPercentage: 0.01,
+          panningSensibility: 1400,
+        };
+
+        const camera = new BABYLON.ArcRotateCamera(
+          "cam",
+          cameraDefaults.alpha,
+          cameraDefaults.beta,
+          cameraDefaults.radius,
+          cameraDefaults.target.clone(),
+          scene,
+        );
+        camera.attachControl(canvas, true);
+        camera.wheelDeltaPercentage = cameraDefaults.wheelDeltaPercentage;
+        camera.panningSensibility = cameraDefaults.panningSensibility;
+        camera.lowerRadiusLimit = cameraDefaults.lowerRadiusLimit;
+        camera.upperRadiusLimit = cameraDefaults.upperRadiusLimit;
+        camera.minZ = cameraDefaults.minZ;
+        camera.fov = cameraDefaults.fov;
+
+        new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene).intensity = 0.0;
+
+        const torus = BABYLON.MeshBuilder.CreateTorus(
+          "torus",
+          { diameter: 2.1, thickness: 0.55, tessellation: 96 },
+          scene,
+        );
+        torus.position.set(0, 0, 0);
+        torus.rotation.set(0.55, 0.0, 0.15);
+        torus.isPickable = false;
+
+        const sphere = BABYLON.MeshBuilder.CreateSphere(
+          "sphere",
+          { diameter: 1.35, segments: 48 },
+          scene,
+        );
+        sphere.position.set(0, 2.0, 0);
+        sphere.isPickable = false;
+
+        const box = BABYLON.MeshBuilder.CreateBox("box", { size: 1.35 }, scene);
+        box.position.set(0, -2.0, 0);
+        box.rotation.set(0.25, 0.55, 0.0);
+        box.isPickable = false;
+
+        const shaderName = installShaders(BABYLON);
+
+        const mat = new BABYLON.ShaderMaterial(
+          "glintMat",
+          scene,
+          { vertex: shaderName, fragment: shaderName },
+          {
+            attributes: ["position", "normal"],
+            uniforms: uniformNames,
+            shaderLanguage:
+              BABYLON.ShaderLanguage && BABYLON.ShaderLanguage.GLSL != null
+                ? BABYLON.ShaderLanguage.GLSL
+                : undefined,
+          },
+        );
+
+        mat.backFaceCulling = true;
+
+        torus.material = mat;
+        sphere.material = mat;
+        box.material = mat;
+
+        const frontLightColor = new BABYLON.Color3(0.95, 0.68, 0.48);
+        const backLightColor = new BABYLON.Color3(0.12, 0.16, 0.24);
+        const lightDir = new BABYLON.Vector3(1, 1, 1).normalize();
+
+        function pushUniforms() {
+          mat.setVector3("uCameraPos", camera.globalPosition || camera.position);
+
+          mat.setVector3("uLightDir", lightDir);
+          mat.setColor3("uFrontLightColor", frontLightColor);
+          mat.setFloat("uFrontLightIntensity", 8.0);
+          mat.setColor3("uBackLightColor", backLightColor);
+          mat.setFloat("uBackLightIntensity", 4.0);
+
+          mat.setFloat("uDensity01", params.density01);
+          mat.setFloat("uRoughness01", params.roughness01);
+          mat.setFloat("uMicrofacetRoughness", params.microfacetRoughness);
+          mat.setFloat("uPixelFilterSize", params.pixelFilterSize);
+          mat.setFloat("uUVScale", params.uvScale);
+          mat.setFloat("uIntensity", params.intensity);
+
+          mat.setFloat("uSigmaScale", params.sigmaScale);
+          mat.setFloat("uSigmaMinCell", params.sigmaMinCell);
+          mat.setFloat("uSigmaMaxCell", params.sigmaMaxCell);
+
+          mat.setFloat("uAnisoWarpStrength", params.anisoWarpStrength);
+
+          mat.setFloat("uShardMix", params.shardMix);
+          mat.setFloat("uShardSharpness", params.shardSharpness);
+          mat.setFloat("uShardEdgeHardness", params.shardEdgeHardness);
+          mat.setFloat("uShardClipStrength", params.shardClipStrength);
+
+          mat.setFloat("uUseToneMapGamma", params.toneMapGamma ? 1.0 : 0.0);
+          mat.setFloat("uUseSparkleColorGradient", params.sparkleColorGradient ? 1.0 : 0.0);
+          mat.setFloat("uUseAnisoWarpMode", params.anisoWarpMode ? 1.0 : 0.0);
+          mat.setFloat("uUseGlassShardMode", params.glassShardMode ? 1.0 : 0.0);
+        }
+
+        function applyRenderScale() {
+          engine.setHardwareScalingLevel(params.renderScale);
+          engine.resize();
+          ui.renderScaleVal.textContent = params.renderScale.toFixed(2);
+        }
+
+        ui.renderScale.addEventListener("input", applyRenderScale);
+
+        let orbitAutoAngle = cameraDefaults.alpha;
+        function resetCamera() {
+          camera.alpha = cameraDefaults.alpha;
+          camera.beta = cameraDefaults.beta;
+          camera.radius = cameraDefaults.radius;
+          camera.target.copyFrom(cameraDefaults.target);
+          orbitAutoAngle = cameraDefaults.alpha;
+        }
+
+        function resetParams() {
+          Object.assign(params, defaults);
+          syncUiFromParams();
+          applyRenderScale();
+          updateStatus();
+        }
+
+        ui.resetCamBtn.addEventListener("click", resetCamera);
+        ui.resetParamsBtn.addEventListener("click", resetParams);
+
+        applyRenderScale();
+        pushUniforms();
+
+        const spinSpeeds = {
+          sphere: [0.15, 0.35, 0.0],
+          torus: [0.0, 0.25, 0.12],
+          box: [0.27, 0.55, 0.0],
+        };
+
+        scene.onBeforeRenderObservable.add(() => {
+          const dt = engine.getDeltaTime() * 0.001;
+
+          if (params.autoOrbit) {
+            orbitAutoAngle += dt * params.orbitSpeed;
+            camera.alpha = orbitAutoAngle;
+          }
+
+          if (params.spinMeshes) {
+            sphere.rotation.x += dt * spinSpeeds.sphere[0];
+            sphere.rotation.y += dt * spinSpeeds.sphere[1];
+            sphere.rotation.z += dt * spinSpeeds.sphere[2];
+
+            torus.rotation.x += dt * spinSpeeds.torus[0];
+            torus.rotation.y += dt * spinSpeeds.torus[1];
+            torus.rotation.z += dt * spinSpeeds.torus[2];
+
+            box.rotation.x += dt * spinSpeeds.box[0];
+            box.rotation.y += dt * spinSpeeds.box[1];
+            box.rotation.z += dt * spinSpeeds.box[2];
+          }
+
+          pushUniforms();
+        });
+
+        window.addEventListener(
+          "resize",
+          () => {
+            engine.resize();
+          },
+          { passive: true },
+        );
+
+        engine.runRenderLoop(() => {
+          scene.render();
+        });
+      })();
+    </script>
+  </body>
+</html>
