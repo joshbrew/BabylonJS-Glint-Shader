@@ -2,6 +2,8 @@
 
 Live demo: https://codepen.io/joshbrew/pen/QwKLpyR
 
+Video demo: https://www.youtube.com/watch?v=R8Ca9FvAY0Q
+
 Adapted implementation of: https://www.shadertoy.com/view/tcdGDl (featured in two minute papers)
 
 It's meant for sparkly snow but you can do a lot with it. Customizable colors and scaling. This specifically uses BabylonJS's WebGL2-styled WebGPU shaders which have generic UV access which underpins the shader.
