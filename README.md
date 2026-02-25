@@ -6,7 +6,7 @@ Video demo: https://www.youtube.com/watch?v=R8Ca9FvAY0Q
 
 Adapted implementation of: https://www.shadertoy.com/view/tcdGDl (featured in two minute papers)
 
-It's meant for sparkly snow but you can do a lot with it. Customizable colors and scaling. This specifically uses BabylonJS's WebGL2-styled WebGPU shaders which have generic UV access which underpins the shader.
+It's meant for sparkly snow but you can do a lot with it. Customizable colors and scaling. This specifically uses BabylonJS's GLSL-styled WebGPU shaders which have generic UV access which underpins the shader.
 
 I added a voronoi tiling based opalescence shader on the same gaussian integration foundations, and the results are pretty damn interesting, and it opens a lot of doors. We had to fix a lot of things from the shadertoy sample to make it more customizable. The results speak for themselves. 
 
